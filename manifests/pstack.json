@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "name": "pstack",
+  "version": "0.1.0",
+  "description": "Portable, rigorous agent engineering workflows for Codex, Claude Code, OMP, and Pi.",
+  "entrypoint": "skills/pstack/SKILL.md",
+  "skills_root": "skills",
+  "targets": {
+    "codex": "${CODEX_HOME:-~/.codex}/skills",
+    "claude": "~/.claude/skills",
+    "omp": "~/.omp/agent/skills",
+    "pi": "${PI_CODING_AGENT_DIR:-~/.pi/agent}/skills"
+  },
+  "upstream": {
+    "repository": "https://github.com/cursor/plugins",
+    "subdirectory": "pstack",
+    "commit": "27e2a62ff94f9af4b5e68435e41cdceacadb840c",
+    "license": "MIT",
+    "copyright": "Copyright (c) 2026 Lauren Tan",
+    "notice": "THIRD_PARTY_NOTICES/pstack-upstream-LICENSE"
+  },
+  "legacy_cursor_manifest": "manifests/upstream-cursor/plugin.json"
+}

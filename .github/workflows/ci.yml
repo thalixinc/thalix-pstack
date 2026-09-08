@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  rust:
+    name: Rust
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+        with:
+          components: clippy,rustfmt
+      - uses: Swatinem/rust-cache@49a0bdc70d2e1b713ca9e2869b211fcce03d3c1c # v2
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo test --workspace --all-targets
+      - run: cargo build --workspace --release --locked
+
+  distribution:
+    name: Distribution
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Validate POSIX installer
+        run: shellcheck install/install.sh
+      - name: Validate PowerShell installer
+        shell: pwsh
+        run: |
+          $errors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path install/install.ps1),
+            [ref]$null,
+            [ref]$errors
+          )
+          if ($errors.Count -gt 0) {
+            $errors | Format-List | Out-String | Write-Error
+          }
+      - name: Validate skill frontmatter
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          failures = []
+          for path in sorted(Path("skills").glob("*/SKILL.md")):
+              text = path.read_text(encoding="utf-8")
+              if not text.startswith("---\n"):
+                  failures.append(f"{path}: missing YAML frontmatter")
+                  continue
+              frontmatter = text.split("---\n", 2)[1]
+              if "name:" not in frontmatter or "description:" not in frontmatter:
+                  failures.append(f"{path}: name and description are required")
+          if failures:
+              raise SystemExit("\n".join(failures))
+          PY
+      - name: Verify upstream attribution
+        run: |
+          test -s THIRD_PARTY_NOTICES/pstack-upstream-LICENSE
+          grep -Fq 'Copyright (c) 2026 Lauren Tan' THIRD_PARTY_NOTICES/pstack-upstream-LICENSE
+          grep -Fq '27e2a62ff94f9af4b5e68435e41cdceacadb840c' THIRD_PARTY_NOTICES/README.md

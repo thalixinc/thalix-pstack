@@ -1,0 +1,25 @@
+[package]
+name = "pstack"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Install and operate the Thalix pstack skill corpus across agent runtimes"
+
+[[bin]]
+name = "pstack"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+fs2.workspace = true
+include_dir.workspace = true
+pstack-core = { path = "../../crates/pstack-core" }
+pstack-runtime = { path = "../../crates/pstack-runtime" }
+serde.workspace = true
+serde_json.workspace = true
+semver.workspace = true
+tempfile.workspace = true
+walkdir.workspace = true

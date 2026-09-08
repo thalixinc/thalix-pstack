@@ -1,0 +1,98 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            archive: tar
+          - runner: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            archive: tar
+          - runner: macos-13
+            target: x86_64-apple-darwin
+            archive: tar
+          - runner: macos-14
+            target: aarch64-apple-darwin
+            archive: tar
+          - runner: windows-latest
+            target: x86_64-pc-windows-msvc
+            archive: zip
+          - runner: windows-11-arm
+            target: aarch64-pc-windows-msvc
+            archive: zip
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Verify tag matches Cargo version
+        shell: bash
+        run: |
+          cargo_version="$(sed -n 's/^version = "\([^"]*\)"/\1/p' Cargo.toml | head -1)"
+          test "${GITHUB_REF_NAME}" = "v${cargo_version}"
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@49a0bdc70d2e1b713ca9e2869b211fcce03d3c1c # v2
+        with:
+          key: ${{ matrix.target }}
+      - name: Build
+        run: cargo build --locked --release --target ${{ matrix.target }} -p pstack
+      - name: Package Unix binary
+        if: matrix.archive == 'tar'
+        shell: bash
+        run: |
+          archive="pstack-${{ matrix.target }}.tar.gz"
+          package="package-${{ matrix.target }}"
+          mkdir -p "$package/THIRD_PARTY_NOTICES"
+          cp "target/${{ matrix.target }}/release/pstack" "$package/pstack"
+          cp LICENSE "$package/LICENSE"
+          cp THIRD_PARTY_NOTICES/pstack-upstream-LICENSE "$package/THIRD_PARTY_NOTICES/"
+          tar -C "$package" -czf "$archive" pstack LICENSE THIRD_PARTY_NOTICES
+      - name: Package Windows binary
+        if: matrix.archive == 'zip'
+        shell: pwsh
+        run: |
+          $package = "package-${{ matrix.target }}"
+          New-Item -ItemType Directory -Path "$package/THIRD_PARTY_NOTICES" -Force | Out-Null
+          Copy-Item "target/${{ matrix.target }}/release/pstack.exe" "$package/pstack.exe"
+          Copy-Item "LICENSE" "$package/LICENSE"
+          Copy-Item "THIRD_PARTY_NOTICES/pstack-upstream-LICENSE" "$package/THIRD_PARTY_NOTICES/pstack-upstream-LICENSE"
+          Compress-Archive `
+            -Path "$package/*" `
+            -DestinationPath "pstack-${{ matrix.target }}.zip"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: pstack-${{ matrix.target }}
+          path: pstack-${{ matrix.target }}.*
+          if-no-files-found: error
+
+  publish:
+    name: Publish GitHub release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Generate checksums
+        working-directory: dist
+        run: sha256sum pstack-* > SHA256SUMS
+      - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        with:
+          files: dist/*
+          generate_release_notes: true

@@ -1,0 +1,4 @@
+#!/bin/sh
+# Portable compatibility entrypoint. The native Rust command has no runtime
+# package installation and never writes into this managed skill directory.
+exec pstack pr watch "$@"
